@@ -71,7 +71,11 @@
 //! # License
 //!
 //! MIT
-use digest::{Digest, FixedOutputReset, HashMarker};
+#![feature(generic_const_exprs)]
+use digest::{
+    generic_array::GenericArray, typenum::Unsigned, Digest, FixedOutputReset, HashMarker,
+    OutputSizeUser,
+};
 
 /// Derives key from the given arguments.
 ///
@@ -94,24 +98,30 @@ pub fn evpkdf<D: Default + FixedOutputReset + HashMarker>(
     salt: &[u8],
     count: usize,
     output: &mut [u8],
-) {
+) where
+    [u8; <D as OutputSizeUser>::OutputSize::USIZE]:
+        From<GenericArray<u8, <D as OutputSizeUser>::OutputSize>>,
+{
     let mut hasher = D::default();
     let mut derived_key = Vec::with_capacity(output.len());
-    let mut block = Vec::new();
+    let mut block = [0u8; <D as OutputSizeUser>::OutputSize::USIZE];
+    let mut is_block_empty = true;
 
     while derived_key.len() < output.len() {
-        if !block.is_empty() {
+        if !is_block_empty {
             hasher.update(&block);
+        } else {
+            is_block_empty = false;
         }
         hasher.update(pass);
         hasher.update(salt.as_ref());
-        block = hasher.finalize_reset().to_vec();
+        block = hasher.finalize_reset().into();
 
         // avoid subtract with overflow
         if count > 1 {
             for _ in 0..(count - 1) {
                 hasher.update(&block);
-                block = hasher.finalize_reset().to_vec();
+                block = hasher.finalize_reset().into();
             }
         }
 
