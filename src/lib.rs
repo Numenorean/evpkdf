@@ -130,3 +130,30 @@ pub fn evpkdf<D: Default + FixedOutputReset + HashMarker>(
 
     output.copy_from_slice(&derived_key[0..output.len()]);
 }
+
+#[cfg(test)]
+mod tests {
+    use hex_literal::hex;
+    use md5::Md5;
+
+    use crate::evpkdf;
+
+    #[test]
+    fn simple() {
+        const KEY_SIZE: usize = 256;
+        const IV_SIZE: usize = 128;
+
+        let mut output = [0; (KEY_SIZE + IV_SIZE) / 8];
+
+        evpkdf::<Md5>(b"password", b"saltsalt", 1, &mut output);
+
+        let (key, iv) = output.split_at(KEY_SIZE / 8);
+
+        assert_eq!(
+            key,
+            hex!("fdbdf3419fff98bdb0241390f62a9db35f4aba29d77566377997314ebfc709f2")
+        );
+
+        assert_eq!(iv, hex!("0b5ca7b1081f94b1ac12e3c8ba87d05a"));
+    }
+}
